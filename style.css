@@ -1,0 +1,336 @@
+o keep the CSS on the tutorial as bare as possible.
+
+HTML
+
+Directive Usage
+
+<calendar selected="day"></calendar>
+In this case, the variable on the controller that gets updated with the selected date would be “day”.
+
+Calendar Template
+
+Because the calendar template is quite large, I’ve extracted it and placed it in its own HTML file, which is the best practice.
+
+<div class="header">
+    <i class="fa fa-angle-left" ng-click="previous()"></i>
+    <span>{{month.format("MMMM, YYYY")}}</span>
+    <i class="fa fa-angle-right" ng-click="next()"></i>
+</div>
+<div class="week names">
+    <span class="day">Sun</span>
+    <span class="day">Mon</span>
+    <span class="day">Tue</span>
+    <span class="day">Wed</span>
+    <span class="day">Thu</span>
+    <span class="day">Fri</span>
+    <span class="day">Sat</span>
+</div>
+<div class="week" ng-repeat="week in weeks">
+    <span class="day" ng-class="{ today: day.isToday, 'different-month': !day.isCurrentMonth, selected: day.date.isSame(selected) }" ng-click="select(day)" ng-repeat="day in week.days">{{day.number}}</span>
+</div>
+Most of this is straightforward, but there are a couple of things I should go over. First, we’re using Font Awesome to render the arrows that allow the user to change months. Font Awesome uses a series of CSS classes to perform the rendering, which in our case are “fa-angle-left” and “fa-angle-right”, with a base “fa” class, as well. You don’t have to use the I tag, but it’s how the Font Awesome guys show all their examples, so I tend to follow along.
+
+The next line shows how we’re using Angular JS and Moment to render the currently selected day’s month. The month variable is where we’re storing the day’s month value. We’re using Moment’s format function to render just the month name. Note that the month is a separate variable from the selected date because the user can select a date outside of the selected month, using the trailing and leading weeks. For example, the end of a month might be on a Wednesday, but we pad out the rest of the week using days from the next month.
+
+The last HTML section contains the rendering for each of the weeks and days. We’re looping through the list of weeks (as shown using Angular’s ng-repeat directive), and then another loop inside that to render the days of the week (another ng-repeat). The syntax for the ng-repeat directive is a little strange, but straightforward. “week in weeks” indicates that we want to iterate over weeks, and assign each item in the weeks array to the week variable. It’s similar to the array.forEach method. Then, we’re setting a couple of styles for each day depending on the state of our directive. For example, we want the selected day and today to have a different style from regular days. We accomplish this using Angular’s ng-class directive, which sets a CSS class on the element based on a truthy variable. Finally, we’re setting up an ng-click directive which allows us to select a day.
+
+JavaScript
+
+Here’s the Angular code for setting up the calendar directive, as well as the controller for our test page. To reduce confusion, I would break out the controller and directive into separate files, as is Angular best practice. For brevity’s sake, I’ve included all the script in one section.
+
+var app = angular.module("demo", []);
+
+app.controller("calendarDemo", function($scope) {
+    $scope.day = moment();
+});
+
+app.directive("calendar", function() {
+    return {
+        restrict: "E",
+        templateUrl: "templates/calendar.html",
+        scope: {
+            selected: "="
+        },
+        link: function(scope) {
+            scope.selected = _removeTime(scope.selected || moment());
+            scope.month = scope.selected.clone();
+
+            var start = scope.selected.clone();
+            start.date(1);
+            _removeTime(start.day(0));
+
+            _buildMonth(scope, start, scope.month);
+
+            scope.select = function(day) {
+                scope.selected = day.date;
+            };
+
+            scope.next = function() {
+                var next = scope.month.clone();
+                _removeTime(next.month(next.month()+1)).date(1));
+                scope.month.month(scope.month.month()+1);
+                _buildMonth(scope, next, scope.month);
+            };
+
+            scope.previous = function() {
+                var previous = scope.month.clone();
+                _removeTime(previous.month(previous.month()-1).date(1));
+                scope.month.month(scope.month.month()-1);
+                _buildMonth(scope, previous, scope.month);
+            };
+        }
+    };
+
+    function _removeTime(date) {
+        return date.day(0).hour(0).minute(0).second(0).millisecond(0);
+    }
+
+    function _buildMonth(scope, start, month) {
+        scope.weeks = [];
+        var done = false, date = start.clone(), monthIndex = date.month(), count = 0;
+        while (!done) {
+            scope.weeks.push({ days: _buildWeek(date.clone(), month) });
+            date.add(1, "w");
+            done = count++ > 2 && monthIndex !== date.month();
+            monthIndex = date.month();
+        }
+    }
+
+    function _buildWeek(date, month) {
+        var days = [];
+        for (var i = 0; i < 7; i++) {
+            days.push({
+                name: date.format("dd").substring(0, 1),
+                number: date.date(),
+                isCurrentMonth: date.month() === month.month(),
+                isToday: date.isSame(new Date(), "day"),
+                date: date
+            });
+            date = date.clone();
+            date.add(1, "d");
+        }
+        return days;
+    }
+});
+First, we’re setting up the Angular application for the demo. Then, we set up the controller for the page, and finally, we create the calendar directive. The only thing we’re doing in the controller is setting the day variable the calendar sends its selected day to. The calendar directive itself is a little more complex. First, we set a starting value for the selected day, based on whether or not the controller’s day is set yet. If it isn’t, we just use today’s date. We use Moment to set the time to midnight, and then generate the current start date for the calendar’s initial month. Then we create the month by calling the _buildMonth function, which sets a list of weeks on the scope. That, in turn, calls the _buildWeek function, which does the same thing for days. The day object contains utility properties which indicate various things, like whether the current day comes before the selected month, or if the day is today. Finally, we add some methods to the scope that allow the user to change months and select a day. The select function is trivial; it just sets the scope’s selected variable to the passed in day. The previous and next methods decrement and increment the month, respectively, and then rebuild the current month.
+
+CSS
+
+.vertical-centre (@height) {
+    height:@height;
+    line-height:@height !important;
+    display:inline-block;
+    vertical-align:middle;
+}
+
+.border-box {
+    box-sizing:border-box;
+    -moz-box-sizing:border-box;
+}
+
+@border-colour:#CCC;
+calendar {
+    float:left;
+    display:block;
+    .border-box;
+    background:white;
+    width:300px;
+    border:solid 1px @border-colour;
+    margin-bottom:10px;
+
+    @secondary-colour:#2875C7;
+    @spacing:10px;
+    @icon-width:40px;
+    @header-height:40px;
+
+    >div.header {
+        float:left;
+        width:100%;
+        background:@secondary-colour;
+        height:@header-height;
+        color:white;
+
+        >* {
+            .vertical-centre(@header-height);
+        }
+
+        >i {
+            float:left;
+            width:@icon-width;
+            font-size:1.125em;
+            font-weight:bold;
+            position:relative;
+            .border-box;
+            padding:0 @spacing;
+            cursor:pointer;
+        }
+
+        >i.fa-angle-left {
+            text-align:left;
+        }
+
+        >i.fa-angle-right {
+            text-align:right;
+            margin-left:@icon-width*-1;
+        }
+
+        >span {
+            float:left;
+            width:100%;
+            font-weight:bold;
+            text-transform:uppercase;
+            .border-box;
+            padding-left:@icon-width+@spacing;
+            margin-left:@icon-width*-1;
+            text-align:center;
+            padding-right:@icon-width;
+            color:inherit;
+        }
+    }
+    >div.week {
+        float:left;
+        width:100%;
+        border-top:solid 1px @border-colour;
+
+        &:first-child {
+            border-top:none;
+        }
+
+        >span.day {
+            float:left;
+            width:100%/7;
+            .border-box;
+            border-left:solid 1px @border-colour;
+            font-size:0.75em;
+            text-align:center;
+            .vertical-centre(30px);
+            background:white;
+            cursor:pointer;
+            color:black;
+
+            &:first-child {
+                border-left:none;
+            }
+
+            &.today {
+                background:#E3F2FF;
+            }
+
+            &.different-month {
+                color:#C0C0C0;
+            }
+
+            &.selected {
+                background:@secondary-colour;
+                color:white;
+            }
+        }
+
+        &.names>span {
+            color:@secondary-colour;
+            font-weight:bold;
+        }
+    }
+}
+
+
+/*.border-box {
+  box-sizing: border-box;
+  -moz-box-sizing: border-box;
+}
+calendar {
+  float: left;
+  display: block;
+  box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  background: white;
+  width: 300px;
+  border: solid 1px #CCC;
+  margin-bottom: 10px;
+}
+calendar > div.header {
+  float: left;
+  width: 100%;
+  background: #2875C7;
+  height: 40px;
+  color: white;
+}
+calendar > div.header > * {
+  height: 40px;
+  line-height: 40px !important;
+  display: inline-block;
+  vertical-align: middle;
+}
+calendar > div.header > i {
+  float: left;
+  width: 40px;
+  font-size: 1.125em;
+  font-weight: bold;
+  position: relative;
+  box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  padding: 0 10px;
+  cursor: pointer;
+}
+calendar > div.header > i.fa-angle-left {
+  text-align: left;
+}
+calendar > div.header > i.fa-angle-right {
+  text-align: right;
+  margin-left: -40px;
+}
+calendar > div.header > span {
+  float: left;
+  width: 100%;
+  font-weight: bold;
+  text-transform: uppercase;
+  box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  padding-left: 50px;
+  margin-left: -40px;
+  text-align: center;
+  padding-right: 40px;
+  color: inherit;
+}
+calendar > div.week {
+  float: left;
+  width: 100%;
+  border-top: solid 1px #CCC;
+}
+calendar > div.week:first-child {
+  border-top: none;
+}
+calendar > div.week > span.day {
+  float: left;
+  width: 14.28571429%;
+  box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  border-left: solid 1px #CCC;
+  font-size: 0.75em;
+  text-align: center;
+  height: 30px;
+  line-height: 30px !important;
+  display: inline-block;
+  vertical-align: middle;
+  background: white;
+  cursor: pointer;
+  color: black;
+}
+calendar > div.week > span.day:first-child {
+  border-left: none;
+}
+calendar > div.week > span.day.today {
+  background: #E3F2FF;
+}
+calendar > div.week > span.day.different-month {
+  color: #C0C0C0;
+}
+calendar > div.week > span.day.selected {
+  background: #2875C7;
+  color: white;
+}
+calendar > div.week.names > span {
+  color: #2875C7;
+  font-weight: bold;
+}
+*/
